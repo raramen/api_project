@@ -13,9 +13,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         die(json_encode(["status" => "error", "message" => "Database connection lost."]));
     }
 
-    // Query untuk mengambil data dari tabel sensor_data dalam 7 hari terakhir
-    //$sql = "SELECT * FROM sensor_data WHERE timestamp >= NOW() - INTERVAL 7 DAY";
-    $sql = "SELECT * FROM sensor_data ORDER BY id DESC";
+    // Ambil parameter 'days' dari URL query
+    $days = isset($_GET['days']) ? (int)$_GET['days'] : 7;  // Default 7 hari jika tidak ada parameter
+
+    // Pastikan parameter 'days' valid
+    if ($days <= 0) {
+        echo json_encode(["status" => "error", "message" => "Invalid 'days' parameter."]);
+        exit;
+    }
+
+    // Query untuk mengambil data dari tabel sensor_data dalam rentang waktu yang ditentukan
+    $sql = "SELECT * FROM sensor_data WHERE timestamp >= NOW() - INTERVAL $days DAY ORDER BY id DESC";
 
     // Eksekusi query dan simpan hasilnya ke dalam variabel $result
     $result = $conn->query($sql);
