@@ -31,6 +31,10 @@ class ComposerStaticInit48a21c3233e5567f4a742830a1c07399
         array (
             'Dotenv\\' => 7,
         ),
+        'B' => 
+        array (
+            'Bluerhinos\\' => 11,
+        ),
     );
 
     public static $prefixDirsPsr4 = array (
@@ -57,6 +61,10 @@ class ComposerStaticInit48a21c3233e5567f4a742830a1c07399
         'Dotenv\\' => 
         array (
             0 => __DIR__ . '/..' . '/vlucas/phpdotenv/src',
+        ),
+        'Bluerhinos\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/bluerhinos/phpmqtt',
         ),
     );
 
