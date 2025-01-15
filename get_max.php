@@ -1,46 +1,57 @@
 <?php
-// Sertakan file koneksi.php untuk membuat koneksi ke database
+// Include the database connection file
 include 'koneksi.php';
 
-// Atur header agar API mengembalikan data dalam format JSON
-header("Content-Type: application/json");
+header('Content-Type: application/json');
 
-// Periksa apakah metode request adalah GET
+// Function to sanitize input
+function sanitizeInput($data) {
+    return htmlspecialchars(strip_tags($data));
+}
+
+// Check if the request method is GET
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    // Query untuk mendapatkan data maksimum (speed dan battery) serta waktu pencapaiannya dalam 7 hari terakhir
-    $sql = "SELECT 
-                (SELECT MAX(speed) FROM sensor_data WHERE timestamp >= NOW() - INTERVAL 7 DAY) AS max_speed, 
-                -- Mendapatkan nilai maksimum speed dari data dalam 7 hari terakhir
-                
-                (SELECT timestamp FROM sensor_data 
-                    WHERE ROUND(speed, 2) = ROUND((SELECT MAX(speed) FROM sensor_data WHERE timestamp >= NOW() - INTERVAL 7 DAY), 2)
-                    AND timestamp >= NOW() - INTERVAL 7 DAY 
-                    LIMIT 1) AS date_max_speed, 
-                -- Mendapatkan waktu (timestamp) saat speed maksimum tercatat
+    // Get the number of days from the GET request, sanitize it, and set a default of 7 days if not specified
+    $days = isset($_GET['days']) ? sanitizeInput($_GET['days']) : 7;
+    $days = is_numeric($days) ? intval($days) : 7; // Ensure the days input is an integer
 
-                (SELECT MAX(battery) FROM sensor_data WHERE timestamp >= NOW() - INTERVAL 7 DAY) AS max_battery, 
-                -- Mendapatkan nilai maksimum battery dari data dalam 7 hari terakhir
-                
-                (SELECT timestamp FROM sensor_data 
-                    WHERE ROUND(battery, 2) = ROUND((SELECT MAX(battery) FROM sensor_data WHERE timestamp >= NOW() - INTERVAL 7 DAY), 2)
-                    AND timestamp >= NOW() - INTERVAL 7 DAY 
-                    LIMIT 1) AS date_max_battery 
-                -- Mendapatkan waktu (timestamp) saat battery maksimum tercatat
+    // SQL query to retrieve the maximum values and their timestamps within the specified number of days
+    $sql = "SELECT 
+                (SELECT MAX(value) FROM speed_data WHERE created_at >= NOW() - INTERVAL $days DAY) AS max_speed, 
+                (SELECT created_at FROM speed_data 
+                 WHERE ROUND(value, 2) = ROUND((SELECT MAX(value) FROM speed_data WHERE created_at >= NOW() - INTERVAL $days DAY), 2)
+                 AND created_at >= NOW() - INTERVAL $days DAY 
+                 LIMIT 1) AS date_max_speed, 
+                (SELECT MAX(capacity) FROM battery_data WHERE created_at >= NOW() - INTERVAL $days DAY) AS max_battery, 
+                (SELECT created_at FROM battery_data 
+                 WHERE ROUND(capacity, 2) = ROUND((SELECT MAX(capacity) FROM battery_data WHERE created_at >= NOW() - INTERVAL $days DAY), 2)
+                 AND created_at >= NOW() - INTERVAL $days DAY 
+                 LIMIT 1) AS date_max_battery,
+                (SELECT MAX(level) FROM water_level_data WHERE created_at >= NOW() - INTERVAL $days DAY) AS max_water_level,
+                (SELECT created_at FROM water_level_data 
+                 WHERE level = (SELECT MAX(level) FROM water_level_data WHERE created_at >= NOW() - INTERVAL $days DAY)
+                 AND created_at >= NOW() - INTERVAL $days DAY 
+                 LIMIT 1) AS date_max_water_level
            ";
 
-    // Eksekusi query
-    $result = $conn->query($sql);
+    // Execute the query
+    $result = $pdo->query($sql);
 
-    // Ambil hasil query sebagai array asosiatif
-    $data = $result->fetch_assoc();
-
-    // Kembalikan hasil query dalam format JSON
-    echo json_encode(["status" => "success", "data" => $data]);
+    // Check if the result is valid
+    if ($result) {
+        // Fetch the result as an associative array
+        $data = $result->fetch(PDO::FETCH_ASSOC);
+        // Return the query results in JSON format
+        echo json_encode(["status" => "success", "data" => $data]);
+    } else {
+        // Handle SQL error
+        echo json_encode(["status" => "error", "message" => "Failed to retrieve data: " . $pdo->error]);
+    }
 } else {
-    // Jika metode request bukan GET, kembalikan pesan error
+    // Return an error message if the request method is not GET
     echo json_encode(["status" => "error", "message" => "Invalid request method"]);
 }
 
-// Tutup koneksi database
-$conn->close();
+// Optionally close the connection
+$pdo = null; // Unsetting PDO to close the connection
 ?>

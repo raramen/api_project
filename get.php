@@ -1,49 +1,65 @@
 <?php
-// Sertakan file koneksi.php untuk mengatur koneksi ke database
-include 'koneksi.php';  // Pastikan koneksi tetap terbuka
+// Include the database connection file
+require 'koneksi.php';  // Ensure the connection is correctly handled in 'koneksi.php'
 
-// Atur header untuk memastikan respons API menggunakan format JSON
+// Set the header to ensure the API response is in JSON format
 header("Content-Type: application/json");
 
-// Periksa apakah metode request yang diterima adalah GET
+// Check if the request method is GET
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    // Periksa apakah koneksi database masih aktif
+    // Check if the database connection is still active
     if (!$conn || $conn->connect_error) {
-        // Jika koneksi tidak aktif, kembalikan pesan error dalam format JSON
+        // If the connection is not active, return an error message in JSON format
         die(json_encode(["status" => "error", "message" => "Database connection lost."]));
     }
 
-    // Ambil parameter 'days' dari URL query
-    $days = isset($_GET['days']) ? (int)$_GET['days'] : 7;  // Default 7 hari jika tidak ada parameter
+    // Retrieve the 'days' parameter from the URL query string
+    $days = isset($_GET['days']) ? (int)$_GET['days'] : 7;  // Default to 7 days if no parameter provided
 
-    // Pastikan parameter 'days' valid
+    // Validate the 'days' parameter
     if ($days <= 0) {
         echo json_encode(["status" => "error", "message" => "Invalid 'days' parameter."]);
         exit;
     }
 
-    // Query untuk mengambil data dari tabel sensor_data dalam rentang waktu yang ditentukan
-    $sql = "SELECT * FROM sensor_data WHERE timestamp >= NOW() - INTERVAL $days DAY ORDER BY id DESC";
+    // Array to store data from all tables
+    $allData = [
+        'speed_data' => [],
+        'battery_data' => [],
+        'water_level_data' => []
+    ];
 
-    // Eksekusi query dan simpan hasilnya ke dalam variabel $result
-    $result = $conn->query($sql);
+    // Queries for each table
+    $queries = [
+        'speed_data' => "SELECT * FROM speed_data WHERE created_at >= NOW() - INTERVAL ? DAY ORDER BY id DESC",
+        'battery_data' => "SELECT * FROM battery_data WHERE created_at >= NOW() - INTERVAL ? DAY ORDER BY id DESC",
+        'water_level_data' => "SELECT * FROM water_level_data WHERE created_at >= NOW() - INTERVAL ? DAY ORDER BY id DESC"
+    ];
 
-    // Inisialisasi array kosong untuk menyimpan data
-    $data = [];
-
-    // Looping untuk mengambil setiap baris data dari hasil query
-    while ($row = $result->fetch_assoc()) {
-        // Tambahkan data baris ke array $data
-        $data[] = $row;
+    // Process each query
+    foreach ($queries as $key => $sql) {
+        if ($stmt = $conn->prepare($sql)) {
+            $stmt->bind_param('i', $days);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            while ($row = $result->fetch_assoc()) {
+                $allData[$key][] = $row;
+            }
+            $stmt->close();
+        } else {
+            echo json_encode(["status" => "error", "message" => "Failed to prepare the database query for $key."]);
+            $conn->close();
+            exit;
+        }
     }
 
-    // Kembalikan data dalam format JSON dengan status sukses
-    echo json_encode(["status" => "success", "data" => $data]);
+    // Return the data in JSON format with a status of success
+    echo json_encode(["status" => "success", "data" => $allData]);
 } else {
-    // Jika metode request bukan GET, kembalikan pesan error
+    // If the request method is not GET, return an error message
     echo json_encode(["status" => "error", "message" => "Invalid request method"]);
 }
 
-// Tutup koneksi ke database setelah selesai
+// Close the database connection after finishing
 $conn->close();
 ?>

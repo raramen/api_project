@@ -1,49 +1,70 @@
 <?php
-// Sertakan file koneksi.php untuk membuat koneksi ke database
+// Include the koneksi.php file to set up the connection to the database
 include 'koneksi.php';
 
-// Atur header agar API mengembalikan data dalam format JSON
+// Set the header to ensure the API response is in JSON format
 header("Content-Type: application/json");
 
-// Periksa apakah metode request adalah GET
+// Function to sanitize input data
+function sanitizeInput($data) {
+    return htmlspecialchars(strip_tags($data));
+}
+
+// Check if the request method received is GET
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    // Query untuk menghitung rata-rata kecepatan, rata-rata baterai, dan rentang tanggal dari data dalam 7 hari terakhir
-    $sql = "SELECT 
-                (SELECT AVG(speed) FROM sensor_data WHERE timestamp >= NOW() - INTERVAL 7 DAY) AS avg_speed,
-                (SELECT AVG(battery) FROM sensor_data WHERE timestamp >= NOW() - INTERVAL 7 DAY) AS avg_battery,
-                (SELECT MIN(timestamp) FROM sensor_data WHERE timestamp >= NOW() - INTERVAL 7 DAY) AS start_date,
-                (SELECT MAX(timestamp) FROM sensor_data WHERE timestamp >= NOW() - INTERVAL 7 DAY) AS end_date
-            ";
+    // Check if the database connection is still active
+    if (!isset($pdo) || $pdo === null) {
+        die(json_encode(["status" => "error", "message" => "Database connection lost."]));
+    }
 
-    // Eksekusi query
-    $result = $conn->query($sql);
+    // Retrieve 'days' from GET parameters and sanitize it
+    $days = isset($_GET['days']) ? intval(sanitizeInput($_GET['days'])) : 7; // Default to 7 days if not specified
 
-    // Periksa apakah query berhasil dieksekusi
-    if ($result) {
-        // Ambil hasil query sebagai array asosiatif
-        $data = $result->fetch_assoc();
+    // Calculate the date 'n' days ago
+    $dateInterval = new DateInterval('P' . $days . 'D');
+    $pastDate = new DateTime();
+    $pastDate->sub($dateInterval);
+    $pastDateString = $pastDate->format('Y-m-d');
 
-        // Kembalikan respons dalam format JSON
-        echo json_encode([
-            "status" => "success", // Status API sukses
-            "data" => [
-                "avg_speed" => $data['avg_speed'], // Rata-rata kecepatan
-                "avg_battery" => $data['avg_battery'] // Rata-rata baterai
-            ],
-            "date_range" => [
-                "start_date" => $data['start_date'], // Tanggal awal data
-                "end_date" => $data['end_date'] // Tanggal akhir data
-            ]
-        ]);
-    } else {
-        // Jika query gagal, kembalikan pesan error
-        echo json_encode(["status" => "error", "message" => "Failed to fetch data"]);
+    try {
+        $averages = [
+            "average_speed" => null,
+            "average_battery" => null,
+            "average_water_level" => null
+        ];
+
+        // Query to calculate the average speed from the speed_data table within the last 'n' days
+        $sql = "SELECT AVG(value) AS average_speed FROM speed_data WHERE created_at >= '$pastDateString'";
+        $result = $pdo->query($sql);
+        if ($row = $result->fetch(PDO::FETCH_ASSOC)) {
+            $averages["average_speed"] = $row["average_speed"];
+        }
+
+        // Query to calculate the average battery capacity from the battery_data table within the last 'n' days
+        $sql = "SELECT AVG(capacity) AS average_battery FROM battery_data WHERE created_at >= '$pastDateString'";
+        $result = $pdo->query($sql);
+        if ($row = $result->fetch(PDO::FETCH_ASSOC)) {
+            $averages["average_battery"] = $row["average_battery"];
+        }
+
+        // Query to calculate the average water level from the water_level_data table within the last 'n' days
+        $sql = "SELECT AVG(level) AS average_water_level FROM water_level_data WHERE created_at >= '$pastDateString'";
+        $result = $pdo->query($sql);
+        if ($row = $result->fetch(PDO::FETCH_ASSOC)) {
+            $averages["average_water_level"] = $row["average_water_level"];
+        }
+
+        echo json_encode(["status" => "success", "averages" => $averages]);
+
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(["status" => "error", "message" => $e->getMessage()]);
     }
 } else {
-    // Jika metode request bukan GET, kembalikan pesan error
+    // Handle non-GET requests
     echo json_encode(["status" => "error", "message" => "Invalid request method"]);
 }
 
-// Tutup koneksi database setelah semua proses selesai
-$conn->close();
+// Optionally close the connection
+// $pdo = null; // Unsetting PDO to close the connection
 ?>

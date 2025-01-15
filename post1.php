@@ -1,73 +1,74 @@
 <?php
-// Mengimpor file koneksi untuk terhubung ke database
-include 'koneksi.php';
-require('phpMQTT.php'); // Mengimpor pustaka phpMQTT
+require 'vendor/autoload.php'; // Load Composer's autoloader
+require 'koneksi.php';        // Memuat koneksi database
 
-// Konfigurasi MQTT
-$server = 'broker.hivemq.com'; // Alamat broker MQTT
-$port = 1883; // Port broker MQTT
-$username = ''; // Username MQTT (opsional)
-$password = ''; // Password MQTT (opsional)
-$client_id = '6f73d100-cf4b-4e49-9133-d512d38b430d' . uniqid(); // ID unik untuk klien MQTT
+// Load environment variables
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
+$dotenv->load();
 
-// Menentukan header untuk respons dalam format JSON
-header("Content-Type: application/json");
+// Mendapatkan API Key dari .env
+$apiKeyRequired = $_ENV['API_KEY'] ?? '';
 
-// Membuat koneksi ke broker MQTT
-$mqtt = new Bluerhinos\phpMQTT($server, $port, $client_id);
+// Mendapatkan API Key dari header atau query string
+$apiKeyReceived = $_SERVER['HTTP_API_KEY'] ?? $_GET['API_KEY'] ?? '';
 
-if (!$mqtt->connect(true, NULL, $username, $password)) {
-    echo json_encode(["status" => "error", "message" => "Failed to connect to MQTT broker"]);
+// Debugging API Key
+if (!$apiKeyRequired) {
+    echo json_encode(["status" => "error", "message" => "API Key tidak ditemukan di .env"]);
     exit;
 }
 
-// Variabel untuk menyimpan data dari topik MQTT
-$speed = null;
-$battery = null;
-
-// Fungsi callback untuk menerima pesan dari topik
-$mqtt->subscribe(['rc/baterailevel' => 0, 'rc/speed' => 0], function ($topic, $msg) use (&$speed, &$battery) {
-    if ($topic === 'rc/baterailevel') {
-        $battery = floatval($msg); // Mengonversi pesan ke angka desimal
-    } elseif ($topic === 'rc/speed') {
-        $speed = floatval($msg); // Mengonversi pesan ke angka desimal
-    }
-});
-
-// Menunggu data diterima dari broker (timeout 10 detik)
-$startTime = time();
-while (is_null($speed) || is_null($battery)) {
-    $mqtt->proc();
-    if (time() - $startTime > 10) { // Timeout setelah 10 detik
-        echo json_encode(["status" => "error", "message" => "Timeout while waiting for MQTT messages"]);
-        $mqtt->close();
-        exit;
-    }
-}
-
-// Tutup koneksi MQTT
-$mqtt->close();
-
-// Validasi input: pastikan 'speed' dan 'battery' tidak null
-if (is_null($speed) || is_null($battery)) {
-    echo json_encode(["status" => "error", "message" => "Failed to retrieve speed and battery data"]);
+if (!$apiKeyReceived) {
+    echo json_encode(["status" => "error", "message" => "API Key tidak ditemukan dalam permintaan"]);
     exit;
 }
 
-// Menyiapkan statement SQL untuk menyisipkan data ke tabel 'sensor_data'
-$stmt = $conn->prepare("INSERT INTO sensor_data (speed, battery) VALUES (?, ?)");
-$stmt->bind_param("dd", $speed, $battery); // 'dd' menunjukkan bahwa parameter adalah angka desimal (double)
-
-// Mengeksekusi statement SQL
-if ($stmt->execute()) {
-    echo json_encode(["status" => "success", "message" => "Data saved successfully"]);
-} else {
-    echo json_encode(["status" => "error", "message" => $stmt->error]);
+// Validasi API Key
+if ($apiKeyReceived !== $apiKeyRequired) {
+    http_response_code(401); // Unauthorized
+    echo json_encode(["status" => "error", "message" => "API Key tidak valid."]);
+    exit;
 }
 
-// Menutup statement SQL
-$stmt->close();
+// Mendapatkan data dari POST
+$speed = isset($_POST['speed']) ? (float) $_POST['speed'] : null;
+$battery = isset($_POST['battery']) ? (float) $_POST['battery'] : null;
+$water_level = isset($_POST['water_level']) ? (float) $_POST['water_level'] : null;
 
-// Menutup koneksi database
+// Validasi data yang dikirimkan
+if ($speed === null || $battery === null || $water_level === null) {
+    http_response_code(400); // Bad Request
+    echo json_encode(["status" => "error", "message" => "Incomplete data. Pastikan speed, battery, dan water_level terkirim."]);
+    exit;
+}
+
+// Simpan data ke database
+try {
+    $conn->begin_transaction();
+
+    $stmt = $conn->prepare("INSERT INTO speed_data (value) VALUES (?)");
+    $stmt->bind_param("d", $speed);
+    $stmt->execute();
+    $stmt->close();
+
+    $stmt = $conn->prepare("INSERT INTO battery_data (capacity) VALUES (?)");
+    $stmt->bind_param("d", $battery);
+    $stmt->execute();
+    $stmt->close();
+
+    $stmt = $conn->prepare("INSERT INTO water_level_data (level) VALUES (?)");
+    $stmt->bind_param("d", $water_level);
+    $stmt->execute();
+    $stmt->close();
+
+    $conn->commit();
+    echo json_encode(["status" => "success", "message" => "Data inserted successfully"]);
+} catch (Exception $e) {
+    $conn->rollback();
+    http_response_code(500); // Internal Server Error
+    echo json_encode(["status" => "error", "message" => "Database error: " . $e->getMessage()]);
+    exit;
+}
+
 $conn->close();
 ?>

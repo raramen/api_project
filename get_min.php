@@ -1,46 +1,58 @@
 <?php
-// Sertakan file koneksi.php untuk membuat koneksi ke database
+// Include the database connection file
 include 'koneksi.php';
 
-// Atur header agar API mengembalikan data dalam format JSON
+// Set the header to return data in JSON format
 header("Content-Type: application/json");
 
-// Periksa apakah metode request adalah GET
+// Function to sanitize input data
+function sanitizeInput($data) {
+    return htmlspecialchars(strip_tags($data));
+}
+
+// Check if the request method is GET
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    // Query untuk mendapatkan nilai minimum (speed dan battery) serta waktu pencapaiannya dalam 7 hari terakhir
+    // Get the number of days from the GET request, sanitize it, and set a default of 7 days if not specified
+    $days = isset($_GET['days']) ? sanitizeInput($_GET['days']) : 7;
+    $days = is_numeric($days) ? intval($days) : 7; // Ensure the days input is an integer
+
+    // SQL query to retrieve the minimum values and their timestamps within the specified number of days
     $sql = "SELECT 
-                (SELECT MIN(speed) FROM sensor_data WHERE timestamp >= NOW() - INTERVAL 7 DAY) AS min_speed,
-                -- Mendapatkan nilai minimum speed dari data dalam 7 hari terakhir
-                
-                (SELECT timestamp FROM sensor_data 
-                    WHERE ROUND(speed, 2) = ROUND((SELECT MIN(speed) FROM sensor_data WHERE timestamp >= NOW() - INTERVAL 7 DAY), 2)
-                    AND timestamp >= NOW() - INTERVAL 7 DAY 
-                    LIMIT 1) AS date_min_speed,
-                -- Mendapatkan waktu (timestamp) saat speed minimum tercatat
-                
-                (SELECT MIN(battery) FROM sensor_data WHERE timestamp >= NOW() - INTERVAL 7 DAY) AS min_battery,
-                -- Mendapatkan nilai minimum battery dari data dalam 7 hari terakhir
-                
-                (SELECT timestamp FROM sensor_data 
-                    WHERE ROUND(battery, 2) = ROUND((SELECT MIN(battery) FROM sensor_data WHERE timestamp >= NOW() - INTERVAL 7 DAY), 2)
-                    AND timestamp >= NOW() - INTERVAL 7 DAY 
-                    LIMIT 1) AS date_min_battery;
-                -- Mendapatkan waktu (timestamp) saat battery minimum tercatat
+                (SELECT MIN(value) FROM speed_data WHERE created_at >= NOW() - INTERVAL $days DAY) AS min_speed, 
+                (SELECT created_at FROM speed_data 
+                 WHERE ROUND(value, 2) = ROUND((SELECT MIN(value) FROM speed_data WHERE created_at >= NOW() - INTERVAL $days DAY), 2)
+                 AND created_at >= NOW() - INTERVAL $days DAY 
+                 LIMIT 1) AS date_min_speed, 
+                (SELECT MIN(capacity) FROM battery_data WHERE created_at >= NOW() - INTERVAL $days DAY) AS min_battery, 
+                (SELECT created_at FROM battery_data 
+                 WHERE ROUND(capacity, 2) = ROUND((SELECT MIN(capacity) FROM battery_data WHERE created_at >= NOW() - INTERVAL $days DAY), 2)
+                 AND created_at >= NOW() - INTERVAL $days DAY 
+                 LIMIT 1) AS date_min_battery,
+                (SELECT MIN(level) FROM water_level_data WHERE created_at >= NOW() - INTERVAL $days DAY) AS min_water_level,
+                (SELECT created_at FROM water_level_data 
+                 WHERE level = (SELECT MIN(level) FROM water_level_data WHERE created_at >= NOW() - INTERVAL $days DAY)
+                 AND created_at >= NOW() - INTERVAL $days DAY 
+                 LIMIT 1) AS date_min_water_level
            ";
-    
-    // Eksekusi query
-    $result = $conn->query($sql);
 
-    // Ambil hasil query sebagai array asosiatif
-    $data = $result->fetch_assoc();
+    // Execute the query using $pdo
+    $result = $pdo->query($sql);
 
-    // Kembalikan hasil query dalam format JSON
-    echo json_encode(["status" => "success", "data" => $data]);
+    // Check if the result is valid
+    if ($result) {
+        // Fetch the result as an associative array
+        $data = $result->fetch(PDO::FETCH_ASSOC);
+        // Return the query results in JSON format
+        echo json_encode(["status" => "success", "data" => $data]);
+    } else {
+        // Handle SQL error
+        echo json_encode(["status" => "error", "message" => "Failed to retrieve data: " . $pdo->errorInfo()[2]]);
+    }
 } else {
-    // Jika metode request bukan GET, kembalikan pesan error
+    // Return an error message if the request method is not GET
     echo json_encode(["status" => "error", "message" => "Invalid request method"]);
 }
 
-// Tutup koneksi database
-$conn->close();
+// Optionally close the connection
+$pdo = null; // Unsetting PDO to close the connection
 ?>

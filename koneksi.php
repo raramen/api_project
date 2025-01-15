@@ -1,48 +1,49 @@
 <?php
-// Autoload Composer untuk memuat library phpdotenv
+// Autoload Composer packages
 require 'vendor/autoload.php';
 
-// Memuat file .env menggunakan library phpdotenv
-$dotenv = Dotenv\Dotenv::createImmutable(__DIR__); // Mengarahkan ke direktori saat ini
-$dotenv->load(); // Memuat variabel dari file .env ke dalam variabel lingkungan ($_ENV)
+// Load environment variables from .env file
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
+$dotenv->load();
 
-// Menentukan header untuk mengatur bahwa response akan dikembalikan dalam format JSON
+// Define header to ensure response is returned in JSON format
 header('Content-Type: application/json');
 
-// Konfigurasi koneksi ke database
-$host = "localhost"; // Host database (biasanya localhost)
-$user = "root"; // Username database
-$password = ""; // Password database (kosong jika tidak ada password)
-$dbname = "iot_project"; // Nama database yang digunakan
+// Database configuration from environment variables
+$host = $_ENV['DB_HOST'];        // Database host
+$db = $_ENV['DB_NAME'];          // Database name
+$user = $_ENV['DB_USER'];        // Database username
+$pass = $_ENV['DB_PASSWORD'];    // Database password
+$charset = 'utf8mb4';            // Character set (hardcoded in script as per your indication)
 
-// Membuat koneksi ke database menggunakan MySQLi
-$conn = new mysqli($host, $user, $password, $dbname);
+// DSN for PDO connection
+$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
 
-// Memeriksa apakah koneksi berhasil
-if ($conn->connect_error) {
-    // Jika koneksi gagal, kirimkan status HTTP 500 dan pesan error dalam format JSON
-    http_response_code(500);
-    die(json_encode(["status" => "error", "message" => $conn->connect_error]));
+try {
+    $pdo = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ]);
+} catch (PDOException $e) {
+    http_response_code(500); // Set HTTP response code to 500 for server error
+    echo json_encode(['status' => 'error', 'message' => 'Database connection failed: ' . $e->getMessage()]);
+    exit; // Terminate script execution after sending the response
 }
 
-// Mengambil API Key dari header HTTP atau query parameter
-$apiKey = isset($_SERVER['HTTP_API_KEY']) 
-    ? $_SERVER['HTTP_API_KEY']  // Jika ada di header, gunakan ini
-    : (isset($_GET['API-Key']) 
-        ? $_GET['API-Key']  // Jika tidak, cek di query parameter
-        : null); // Jika tidak ditemukan, atur ke null
+// Retrieve API Key from HTTP headers or query parameters
+$apiKeyReceived = $_SERVER['HTTP_API_KEY'] ?? $_GET['api_key'] ?? '';
 
-// Mengambil API Key yang valid dari file .env
-$validApiKey = $_ENV['API_KEY']; // API Key disimpan di file .env untuk keamanan
+// Get valid API Key from environment variables
+$validApiKey = $_ENV['API_KEY'];
 
-// Memvalidasi API Key yang diterima dengan API Key yang ada di .env
-if ($apiKey !== $validApiKey) {
-    // Jika API Key tidak valid, kirimkan status HTTP 401 (Unauthorized)
-    http_response_code(401);
-    die(json_encode(["status" => "error", "message" => "API Key tidak valid."]));
+// Validate the API Key
+if ($apiKeyReceived !== $validApiKey) {
+    http_response_code(401); // Unauthorized access
+    echo json_encode(['status' => 'error', 'message' => 'Invalid API Key.']);
+    exit;
 }
 
-// Catatan: 
-// Jangan menutup koneksi di sini, karena file ini hanya bertugas menyiapkan koneksi dan validasi API Key.
-// Penutupan koneksi harus dilakukan di file lain (misalnya `get_all.php`) setelah semua proses selesai.
+// API Key is valid, proceed with the rest of the script
+// Example: Insert here the rest of your script logic for database operations or data processing
 ?>

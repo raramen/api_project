@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jan 10, 2025 at 03:20 PM
+-- Generation Time: Jan 14, 2025 at 02:28 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -20,6 +20,25 @@ SET time_zone = "+00:00";
 --
 -- Database: `iot_project`
 --
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `battery_data`
+--
+
+CREATE TABLE `battery_data` (
+  `id` int(11) NOT NULL,
+  `capacity` float NOT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `battery_data`
+--
+
+INSERT INTO `battery_data` (`id`, `capacity`, `created_at`) VALUES
+(1, 80, '2025-01-11 02:52:41');
 
 -- --------------------------------------------------------
 
@@ -57,9 +76,53 @@ INSERT INTO `sensor_data` (`id`, `speed`, `battery`, `timestamp`) VALUES
 (16, 50, 79, '2024-12-21 13:12:52'),
 (17, 60, 90, '2025-01-10 19:05:35');
 
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `speed_data`
+--
+
+CREATE TABLE `speed_data` (
+  `id` int(11) NOT NULL,
+  `value` float NOT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `speed_data`
+--
+
+INSERT INTO `speed_data` (`id`, `value`, `created_at`) VALUES
+(1, 50.5, '2025-01-11 02:52:41');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `water_level_data`
+--
+
+CREATE TABLE `water_level_data` (
+  `id` int(11) NOT NULL,
+  `level` float NOT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `water_level_data`
+--
+
+INSERT INTO `water_level_data` (`id`, `level`, `created_at`) VALUES
+(1, 30.2, '2025-01-11 02:52:41');
+
 --
 -- Indexes for dumped tables
 --
+
+--
+-- Indexes for table `battery_data`
+--
+ALTER TABLE `battery_data`
+  ADD PRIMARY KEY (`id`);
 
 --
 -- Indexes for table `sensor_data`
@@ -68,14 +131,44 @@ ALTER TABLE `sensor_data`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indexes for table `speed_data`
+--
+ALTER TABLE `speed_data`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `water_level_data`
+--
+ALTER TABLE `water_level_data`
+  ADD PRIMARY KEY (`id`);
+
+--
 -- AUTO_INCREMENT for dumped tables
 --
+
+--
+-- AUTO_INCREMENT for table `battery_data`
+--
+ALTER TABLE `battery_data`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `sensor_data`
 --
 ALTER TABLE `sensor_data`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
+
+--
+-- AUTO_INCREMENT for table `speed_data`
+--
+ALTER TABLE `speed_data`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
+-- AUTO_INCREMENT for table `water_level_data`
+--
+ALTER TABLE `water_level_data`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

@@ -1,41 +1,46 @@
 <?php
-// Sertakan file koneksi.php untuk mengatur koneksi ke database
-include 'koneksi.php';  // Pastikan koneksi tetap terbuka
+include 'koneksi.php'; // Include koneksi database
 
-// Atur header untuk memastikan respons API menggunakan format JSON
-header("Content-Type: application/json");
+// Mengambil data dari tabel battery_data
+$queryBattery = "SELECT * FROM battery_data";
+$resultBattery = $conn->query($queryBattery);
 
-// Periksa apakah metode request yang diterima adalah GET
-if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    // Periksa apakah koneksi database masih aktif
-    if (!$conn || $conn->connect_error) {
-        // Jika koneksi tidak aktif, kembalikan pesan error dalam format JSON
-        die(json_encode(["status" => "error", "message" => "Database connection lost."]));
-    }
+// Mengambil data dari tabel sensor_data
+$querySensor = "SELECT * FROM sensor_data";
+$resultSensor = $conn->query($querySensor);
 
-    // Query untuk mengambil data dari tabel sensor_data dalam 7 hari terakhir
-    //$sql = "SELECT * FROM sensor_data WHERE timestamp >= NOW() - INTERVAL 7 DAY";
-    $sql = "SELECT * FROM sensor_data ORDER BY id DESC";
+// Mengambil data dari tabel speed_data
+$querySpeed = "SELECT * FROM speed_data";
+$resultSpeed = $conn->query($querySpeed);
 
-    // Eksekusi query dan simpan hasilnya ke dalam variabel $result
-    $result = $conn->query($sql);
+// Mengambil data dari tabel water_level_data
+$queryWaterLevel = "SELECT * FROM water_level_data";
+$resultWaterLevel = $conn->query($queryWaterLevel);
 
-    // Inisialisasi array kosong untuk menyimpan data
-    $data = [];
+$data = [];
 
-    // Looping untuk mengambil setiap baris data dari hasil query
-    while ($row = $result->fetch_assoc()) {
-        // Tambahkan data baris ke array $data
-        $data[] = $row;
-    }
-
-    // Kembalikan data dalam format JSON dengan status sukses
-    echo json_encode(["status" => "success", "data" => $data]);
-} else {
-    // Jika metode request bukan GET, kembalikan pesan error
-    echo json_encode(["status" => "error", "message" => "Invalid request method"]);
+if ($resultBattery->num_rows > 0) {
+    $data['battery_data'] = $resultBattery->fetch_all(MYSQLI_ASSOC);
 }
 
-// Tutup koneksi ke database setelah selesai
-$conn->close();
-?>
+if ($resultSensor->num_rows > 0) {
+    $data['sensor_data'] = $resultSensor->fetch_all(MYSQLI_ASSOC);
+}
+
+if ($resultSpeed->num_rows > 0) {
+    $data['speed_data'] = $resultSpeed->fetch_all(MYSQLI_ASSOC);
+}
+
+if ($resultWaterLevel->num_rows > 0) {
+    $data['water_level_data'] = $resultWaterLevel->fetch_all(MYSQLI_ASSOC);
+}
+
+// Menampilkan data JSON
+header('Content-Type: application/json');
+if (empty($data)) {
+    echo json_encode(['status' => 'error', 'message' => 'Incomplete data']);
+} else {
+    echo json_encode(['status' => 'success', 'data' => $data]);
+}
+
+$conn->close(); // Menutup koneksi database
